@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Deliverability Checker: SPF, DKIM, DMARC & Blacklists</title>
+<meta name="description" content="Free check of any domain's SPF, DKIM, DMARC, MX, MTA-STS, BIMI and 9 spam blacklists. Get a grade, a shareable report link and the exact DNS records to fix it.">
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#16181d;--muted:#5d6370;--line:#e3e3df;--good:#137a3f;--warn:#a15c00;--bad:#b42318;--accent:#2849d6;--chip:#f0f0ec}
+@media (prefers-color-scheme:dark){:root{--bg:#121316;--card:#1b1d22;--ink:#ecedf0;--muted:#a1a6b2;--line:#2c2f36;--good:#4cc27e;--warn:#e0a43a;--bad:#f0675c;--accent:#7d95ff;--chip:#24272e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:clamp(26px,5vw,38px);line-height:1.15;margin:0 0 8px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 24px}
+form{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1 1 260px;font:inherit;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+button{font:inherit;font-weight:600;padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+button.ghost{background:var(--chip);color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-top:16px}
+.grade{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.big{font-size:56px;font-weight:800;width:84px;height:84px;border-radius:18px;display:grid;place-items:center;color:#fff}
+.row{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.dot{flex:0 0 auto;margin-top:3px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+.ok{background:var(--good)}.warn{background:var(--warn)}.bad{background:var(--bad)}
+.row h3{margin:0;font-size:16px}
+.row p{margin:2px 0 0;color:var(--muted);font-size:14px}
+code,pre{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--chip);border-radius:6px}
+code{padding:1px 5px;word-break:break-all}
+pre{padding:10px 12px;white-space:pre-wrap;word-break:break-all;margin:8px 0 0}
+.fix{margin-top:6px;font-size:14px}
+.bl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;margin-top:8px;font-size:14px}
+.muted{color:var(--muted)}
+.cta{border-color:var(--accent)}
+.cta h2{margin:0 0 6px;font-size:20px}
+.share{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+footer{margin-top:40px;color:var(--muted);font-size:13px}
+a{color:var(--accent)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>Will your emails land in the inbox?</h1>
+  <p class="sub">Free check of SPF, DKIM, DMARC, MX, MTA-STS, BIMI and 9 spam blacklists. Since 2024 Gmail and Yahoo reject or spam-folder bulk mail without SPF, DKIM and DMARC.</p>
+  <form id="f">
+    <input id="d" placeholder="yourcompany.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Domain">
+    <button>Check domain</button>
+  </form>
+
+  <div id="out" class="hidden">
+    <div class="card grade">
+      <div id="g" class="big">?</div>
+      <div>
+        <div style="font-size:20px;font-weight:700" id="gtitle"></div>
+        <div class="muted" id="gsum"></div>
+        <div class="share">
+          <button class="ghost" id="copy">Copy report link</button>
+          <button class="ghost" id="badgebtn">Get badge</button>
+        </div>
+      </div>
+    </div>
+    <div class="card hidden" id="badge">
+      <strong>Show your domain passes.</strong> <span class="muted">Paste this into your site footer or email signature page. It links to your live report.</span>
+      <pre id="badgecode"></pre>
+    </div>
+    <div class="card" id="checks"></div>
+    <div class="card cta" id="cta">
+      <h2>Fix it in 20 minutes: the Deliverability Setup Kit</h2>
+      <p class="muted" style="margin:0 0 10px">Copy-paste DNS records for Google Workspace, Microsoft 365 and 15+ senders (Mailchimp, HubSpot, SendGrid, Mailgun, SES...), a safe DMARC rollout plan from p=none to p=reject, warm-up schedule, and a checklist for cold email domains. One-time $39.</p>
+      <a id="buy" href="#"><button>Get the kit for $39</button></a>
+    </div>
+  </div>
+
+  <footer>
+    Checks run in your browser using public DNS (Google DNS-over-HTTPS). Nothing is stored. Spamhaus does not answer public resolvers, so it is not included.
+  </footer>
+</main>
+<script>
+const KIT_URL = '#kit'; // set to checkout link when live
+const DKIM_SELECTORS = ['google','selector1','selector2','default','k1','k2','k3','s1','s2','dkim','mail','smtp','mandrill','mxvault','zoho','zmail','sendgrid','sg','em','pm','postmark','mailjet','mailgun','mg','krs','hs1','hs2','hubspot','fm1','fm2','fm3','protonmail','protonmail2','protonmail3','sib','brevo','amazonses','ses','cm','everlytickey1','everlytickey2','dkim1','dkim2','key1','key2','turbo-smtp','titan1','instantly','smartlead'];
+const DNSBLS = [
+  ['Barracuda','b.barracudacentral.org'],['SpamCop','bl.spamcop.net'],['PSBL','psbl.surriel.com'],
+  ['Mailspike','bl.mailspike.net'],['UCEPROTECT L1','dnsbl-1.uceprotect.net'],['GBUdb','truncate.gbudb.net'],
+  ['DroneBL','dnsbl.dronebl.org'],['Anonmails','spam.dnsbl.anonmails.de'],['0spam','bl.0spam.org']];
+
+async function q(name, type){
+  const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`);
+  if(!r.ok) throw new Error('dns');
+  const j = await r.json();
+  return {status:j.Status, answers:(j.Answer||[]).filter(a=>a.type===({A:1,MX:15,TXT:16,CNAME:5}[type]??a.type)).map(a=>a.data)};
+}
+const txt = s => s.replace(/^"|"$/g,'').replace(/"\s*"/g,'');
+async function txts(name){ const r = await q(name,'TXT'); return r.answers.map(txt); }
+
+async function spfLookups(record, depth=0, seen=new Set()){
+  // Count DNS-querying mechanisms (RFC 7208 limit: 10)
+  let n = 0;
+  for(const term of record.split(/\s+/).slice(1)){
+    const t = term.toLowerCase().replace(/^[+\-~?]/,'');
+    if(/^(include|redirect)[:=]/.test(t)){
+      n++;
+      const dom = t.split(/[:=]/)[1];
+      if(depth<5 && !seen.has(dom)){
+        seen.add(dom);
+        const sub = (await txts(dom)).find(x=>x.startsWith('v=spf1'));
+        if(sub) n += await spfLookups(sub, depth+1, seen);
+      }
+    } else if(/^(a|mx|ptr|exists)([:/]|$)/.test(t)) n++;
+  }
+  return n;
+}
+
+async function findDkim(domain){
+  const found = [];
+  await Promise.all(DKIM_SELECTORS.map(async sel=>{
+    try{
+      const r = await q(`${sel}._domainkey.${domain}`,'TXT');
+      const rec = r.answers.map(txt).find(x=>/v=DKIM1|k=rsa|p=/i.test(x));
+      if(rec && !/p=\s*(;|$)/.test(rec)) found.push(sel);
+      else if(!rec){ const c = await q(`${sel}._domainkey.${domain}`,'CNAME'); if(c.answers.length) found.push(sel); }
+    }catch(e){}
+  }));
+  return found;
+}
+
+async function check(domain){
+  const res = [];
+  const add = (key, status, title, detail, fix) => res.push({key,status,title,detail,fix});
+
+  // Fire independent lookups at once; awaited below in display order.
+  const P = {mx:q(domain,'MX'), root:txts(domain), dmarc:txts('_dmarc.'+domain), sts:txts('_mta-sts.'+domain),
+             tls:txts('_smtp._tls.'+domain), bimi:txts('default._bimi.'+domain)};
+  const dkimP = findDkim(domain);
+  // MX
+  const mx = (await P.mx).answers.map(x=>x.split(' ').pop().replace(/\.$/,''));
+  if(mx.length) add('mx','ok','MX records found',`Mail is handled by ${mx.slice(0,3).map(m=>`<code>${m}</code>`).join(', ')}${mx.length>3?' and more':''}.`);
+  else add('mx','bad','No MX records',`This domain can't receive email, and many filters distrust senders that can't receive replies.`,`Add the MX records from your email provider (Google Workspace, Microsoft 365, etc.).`);
+
+  // SPF
+  const root = await P.root;
+  const spfs = root.filter(x=>x.toLowerCase().startsWith('v=spf1'));
+  if(!spfs.length) add('spf','bad','No SPF record','Receivers cannot verify which servers may send for this domain.',`Add a TXT record at <code>@</code>, e.g. for Google Workspace:<pre>v=spf1 include:_spf.google.com ~all</pre>`);
+  else if(spfs.length>1) add('spf','bad','Multiple SPF records','Having more than one SPF record makes SPF fail (permerror) everywhere.',`Merge them into one TXT record that starts with <code>v=spf1</code>.`);
+  else {
+    const s = spfs[0]; const n = await spfLookups(s);
+    const all = (s.match(/[+\-~?]?all\b/)||[''])[0];
+    let st='ok', notes=[];
+    if(n>10){st='bad';notes.push(`${n} DNS lookups, over the limit of 10, so SPF fails.`)}
+    else if(n>=8){st='warn';notes.push(`${n} of 10 DNS lookups used; one more include will break it.`)}
+    else notes.push(`${n} of 10 DNS lookups used.`);
+    if(all==='+all'||all==='all'){st='bad';notes.push('<code>+all</code> lets anyone send as you.')}
+    else if(all==='?all'||!all){if(st==='ok')st='warn';notes.push('Ends without <code>~all</code> or <code>-all</code>, so it protects nothing.')}
+    add('spf',st,st==='ok'?'SPF is valid':'SPF needs attention',`<code>${s}</code><br>${notes.join(' ')}`, st==='ok'?null:'Remove unused includes, and end the record with <code>~all</code> or <code>-all</code>.');
+  }
+
+  // DMARC
+  const dm = (await P.dmarc).find(x=>x.toLowerCase().startsWith('v=dmarc1'));
+  if(!dm) add('dmarc','bad','No DMARC record','Gmail and Yahoo require DMARC for bulk senders, and without it anyone can spoof your domain.',`Add a TXT record at <code>_dmarc</code>:<pre>v=DMARC1; p=none; rua=mailto:dmarc@${domain}</pre>Then move to <code>p=quarantine</code> once reports look clean.`);
+  else {
+    const p=(dm.match(/;\s*p=(\w+)/i)||[])[1]?.toLowerCase(); const rua=/rua=/i.test(dm);
+    const st = p==='reject'||p==='quarantine' ? (rua?'ok':'warn') : 'warn';
+    const det = `<code>${dm}</code><br>Policy <strong>${p||'missing'}</strong>${p==='none'?': monitoring only, spoofed mail is still delivered.':'.'}${rua?'':' No <code>rua</code> address, so you get no reports.'}`;
+    add('dmarc',st,st==='ok'?'DMARC is enforced':'DMARC is set but weak',det, st==='ok'?null:'Add <code>rua=mailto:...</code> to get reports, then raise to <code>p=quarantine</code> and later <code>p=reject</code>.');
+  }
+
+  // DKIM
+  const found = await dkimP;
+  if(found.length) add('dkim','ok','DKIM key found',`Selector${found.length>1?'s':''}: ${found.map(s=>`<code>${s}</code>`).join(', ')}.`);
+  else add('dkim','warn','No DKIM key found on common selectors',`We checked ${DKIM_SELECTORS.length} common selectors. Your provider may use a custom one; check a sent email's <code>DKIM-Signature: s=</code> header.`,'Turn on DKIM signing in your email provider and publish the TXT/CNAME it gives you.');
+
+  // MTA-STS & TLS-RPT & BIMI
+  const sts = (await P.sts).find(x=>x.startsWith('v=STSv1'));
+  const tlsrpt = (await P.tls).find(x=>x.startsWith('v=TLSRPTv1'));
+  add('mtasts', sts?'ok':'warn', sts?'MTA-STS enabled':'No MTA-STS', sts?'Inbound mail is protected against TLS downgrade.':'Optional, but it protects inbound mail from downgrade attacks.'+(tlsrpt?'':' TLS-RPT reporting is also missing.'));
+  const bimi = (await P.bimi).find(x=>x.startsWith('v=BIMI1'));
+  add('bimi', bimi?'ok':'warn', bimi?'BIMI logo published':'No BIMI logo', bimi?'Your logo can show next to your emails in supporting inboxes.':'Optional. Needs DMARC at quarantine or reject first.');
+
+  // Blacklists: MX host IPs
+  const ips = new Set();
+  for(const m of mx.slice(0,3)){ try{ (await q(m,'A')).answers.forEach(ip=>ips.add(ip)); }catch(e){} }
+  const listed = [], rows = [];
+  await Promise.all(DNSBLS.map(async ([name,zone])=>{
+    let hit = false;
+    for(const ip of ips){
+      const rev = ip.split('.').reverse().join('.');
+      try{ const r = await q(`${rev}.${zone}`,'A'); if(r.answers.some(a=>a.startsWith('127.'))) hit = true; }catch(e){}
+    }
+    rows.push(`<div>${hit?'❌':'✅'} ${name}</div>`); if(hit) listed.push(name);
+  }));
+  if(!ips.size) add('bl','warn','Blacklists not checked','No mail server IPs found to check.');
+  else add('bl', listed.length?'bad':'ok', listed.length?`Listed on ${listed.length} blacklist${listed.length>1?'s':''}`:`Clean on ${DNSBLS.length} blacklists`,
+    `Checked mail server IP${ips.size>1?'s':''} ${[...ips].slice(0,4).map(i=>`<code>${i}</code>`).join(' ')}.<div class="bl">${rows.sort().join('')}</div>`,
+    listed.length?'Shared provider IPs (Google, Microsoft) are sometimes listed on minor lists with little effect. For your own server, request delisting on each list\'s site.':null);
+  return res;
+}
+
+function grade(res){
+  const w = {spf:25,dmarc:25,dkim:20,mx:10,bl:15,mtasts:3,bimi:2};
+  let s = 0; for(const r of res) s += (w[r.key]||0) * (r.status==='ok'?1:r.status==='warn'?0.5:0);
+  const letter = s>=90?'A':s>=75?'B':s>=60?'C':s>=40?'D':'F';
+  return {s:Math.round(s), letter};
+}
+const color = l => ({A:'var(--good)',B:'var(--good)',C:'var(--warn)',D:'var(--bad)',F:'var(--bad)'}[l]);
+
+function render(domain, res){
+  const {s, letter} = grade(res);
+  const g = document.getElementById('g'); g.textContent = letter; g.style.background = color(letter);
+  const fails = res.filter(r=>r.status==='bad').length, warns = res.filter(r=>r.status==='warn').length;
+  document.getElementById('gtitle').textContent = `${domain}: ${s}/100`;
+  document.getElementById('gsum').textContent = fails? `${fails} problem${fails>1?'s':''} that can send your email to spam${warns?`, ${warns} warning${warns>1?'s':''}`:''}.` : warns? `Passing, with ${warns} improvement${warns>1?'s':''} available.` : 'Everything checks out.';
+  document.getElementById('checks').innerHTML = res.map(r=>`<div class="row"><div class="dot ${r.status}">${r.status==='ok'?'✓':r.status==='warn'?'!':'✕'}</div><div><h3>${r.title}</h3><p>${r.detail}</p>${r.fix?`<div class="fix"><strong>Fix:</strong> ${r.fix}</div>`:''}</div></div>`).join('');
+  const link = `${location.origin}${location.pathname}?d=${encodeURIComponent(domain)}`;
+  document.getElementById('badgecode').textContent = `<a href="${link}" target="_blank" rel="noopener"><img src="${location.origin}${location.pathname.replace(/[^/]*$/,'')}badge.svg" alt="Email authentication checked" height="20"></a>`;
+  document.getElementById('cta').style.display = letter==='A' ? 'none' : '';
+  document.getElementById('out').classList.remove('hidden');
+}
+
+async function run(domain){
+  domain = domain.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^.*@/,'').replace(/^www\./,'').split(/[\/?#]/)[0];
+  if(!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) { document.getElementById('d').setCustomValidity('Enter a domain like yourcompany.com'); document.getElementById('d').reportValidity(); return; }
+  document.getElementById('d').value = domain;
+  history.replaceState(null,'',`?d=${encodeURIComponent(domain)}`);
+  document.getElementById('out').classList.remove('hidden');
+  document.getElementById('g').textContent='…'; document.getElementById('g').style.background='var(--muted)';
+  document.getElementById('cta').style.display='none'; document.getElementById('gtitle').textContent=`Checking ${domain}…`; document.getElementById('gsum').textContent=''; document.getElementById('checks').innerHTML='';
+  try{ render(domain, await check(domain)); }
+  catch(e){ document.getElementById('gtitle').textContent='DNS lookup failed. Try again in a moment.'; }
+}
+
+document.getElementById('d').addEventListener('input', e=>e.target.setCustomValidity(''));
+document.getElementById('f').addEventListener('submit', e=>{ e.preventDefault(); run(document.getElementById('d').value); });
+document.getElementById('copy').addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(location.href); document.getElementById('copy').textContent='Link copied'; }catch(e){} });
+document.getElementById('badgebtn').addEventListener('click', ()=>document.getElementById('badge').classList.toggle('hidden'));
+document.getElementById('buy').href = KIT_URL;
+const pre = new URLSearchParams(location.search).get('d'); if(pre) run(pre);
+</script>
+</body>
+</html>
